@@ -5,7 +5,10 @@ Classify images into the five groups: Cosmos, Paintings, Food, Interiors, People
 Sebastian Bobrowski (s17603@pjwstk.edu.pl), Katarzyna Czerwińska (s17098@pjwstk.edu.pl)
 ## Instructions for use
 ### Requirements
+#### Runtime
 .NET Runtime 5.0.0
+#### Library on non-Windows operating systems (tested on macOS)
+https://www.mono-project.com/docs/gui/libgdiplus/
 ### .NET CLI
 #### Train the model
 Execute the "dotnet run --project dotnet run --project ImageClassification.Train/ImageClassification.Train.csproj" command in the solution directory.

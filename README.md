@@ -21,13 +21,19 @@ Select the appropriate project to run and click the Run button
 ### Image sets
 #### Cosmos
 https://nasa.tumblr.com/
+https://www.nasa.gov/mission_pages/spitzer/multimedia/spitzer-20070604.html
+https://wiadomosci.onet.pl/swiat/mozliwa-rewolucja-w-swiecie-fizyki-zagadka-wieku-wszechswiata-rozwiazana/4r6rw1j
+http://www.oa.uj.edu.pl/apod/apod/ap150618.html
 #### Paintings
 https://sollertias.tumblr.com/
 #### Food
 https://cravefoodie.com/
+https://www.pyszne.pl/jedzenie-na-dowoz
 #### Interiors
 https://vintagehomecollection.tumblr.com/
+https://ideadomu.pl/wnetrza-domu-w-komorowie/
 #### People
 https://gucci.tumblr.com/
+https://www.niedziela.pl/artykul/148187/nd/Ocal-dziecko-w%C2%A0sobie
 ### Code base
 https://github.com/dotnet/machinelearning-samples/tree/master/samples/csharp/getting-started/DeepLearning_ImageClassification_Training

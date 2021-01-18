@@ -19,6 +19,10 @@ namespace ImageClassification.Train
             const string assetsRelativePath = @"../../../assets";
             string assetsPath = GetAbsolutePath(assetsRelativePath);
 
+            const string solutionRelativePath = @"../../../../";
+            string solutionPath = GetAbsolutePath(solutionRelativePath);
+            string predictMlNetModelFilePath = Path.Combine(solutionPath, "ImageClassification.Predict", "assets", "inputs", "MLNETModel", "imageClassifier.zip");
+
             string outputMlNetModelFilePath = Path.Combine(assetsPath, "outputs", "imageClassifier.zip");
             string imagesFolderPathForPredictions = Path.Combine(assetsPath, "inputs", "test-images");
 
@@ -104,6 +108,10 @@ namespace ImageClassification.Train
             // 8. Save the model to assets/outputs (You get ML.NET .zip model file and TensorFlow .pb model file)
             mlContext.Model.Save(trainedModel, trainDataView.Schema, outputMlNetModelFilePath);
             Console.WriteLine($"Model saved to: {outputMlNetModelFilePath}");
+
+            //Copy model to predict
+            File.Copy(outputMlNetModelFilePath, predictMlNetModelFilePath, true);
+            Console.WriteLine($"Model copied to: {predictMlNetModelFilePath}");
 
             // 9. Try a single prediction simulating an end-user app
             TrySinglePrediction(imagesFolderPathForPredictions, mlContext, trainedModel);

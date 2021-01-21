@@ -13,6 +13,11 @@ namespace ImageClassification.Train
 {
     internal class Program
     {
+        private static MLContext mlContext;
+
+        /// <summary>
+        /// Start the program.
+        /// </summary>
         static void Main()
         {
             string outputMlNetModelFilePath = GetOutputModelFilePath();
@@ -20,10 +25,10 @@ namespace ImageClassification.Train
             string fullImagesetFolderPath = GetFullImagesetFolderPath();
             string imagesFolderPathForPredictions = GetImagesForPredictionFolderPath();
 
-            var mlContext = new MLContext(seed: 1);
+            mlContext = new MLContext(seed: 1);
 
             // Specify MLContext Filter to only show feedback log/traces about ImageClassification
-            mlContext.Log += FilterMLContextLog;
+            SpecifyContextFilter();
 
             // 2. Load the initial full image-set into an IDataView and shuffle so it'll be better balanced
             IDataView shuffledFullImageFilePathsDataset = GetShuffledFullImageFilePathsDataset(fullImagesetFolderPath, mlContext);
@@ -76,18 +81,45 @@ namespace ImageClassification.Train
             Console.ReadKey();
         }
 
+        /// <summary>
+        /// Specify MLContext Filter to only show feedback log/traces about ImageClassification
+        /// </summary>
+        /// <param name="mlContext"></param>
+        private static void SpecifyContextFilter()
+        {
+            mlContext.Log += FilterMLContextLog;
+        }
+
+        /// <summary>
+        /// Copy model to predict.
+        /// </summary>
+        /// <param name="outputMlNetModelFilePath"></param>
+        /// <param name="predictMlNetModelFilePath"></param>
         private static void CopyModelToPredict(string outputMlNetModelFilePath, string predictMlNetModelFilePath)
         {
             File.Copy(outputMlNetModelFilePath, predictMlNetModelFilePath, true);
             Console.WriteLine($"Model copied to: {predictMlNetModelFilePath}");
         }
 
+        /// <summary>
+        /// Save the model to assets/outputs (You get ML.NET .zip model file and TensorFlow .pb model file).
+        /// </summary>
+        /// <param name="outputMlNetModelFilePath"></param>
+        /// <param name="mlContext"></param>
+        /// <param name="trainDataView"></param>
+        /// <param name="trainedModel"></param>
         private static void SaveModel(string outputMlNetModelFilePath, MLContext mlContext, IDataView trainDataView, ITransformer trainedModel)
         {
             mlContext.Model.Save(trainedModel, trainDataView.Schema, outputMlNetModelFilePath);
             Console.WriteLine($"Model saved to: {outputMlNetModelFilePath}");
         }
 
+        /// <summary>
+        /// Train/create the ML model.
+        /// </summary>
+        /// <param name="trainDataView"></param>
+        /// <param name="pipeline"></param>
+        /// <returns>Trained Model</returns>
         private static ITransformer GetTrainedModel(IDataView trainDataView, Microsoft.ML.Data.EstimatorChain<KeyToValueMappingTransformer> pipeline)
         {
             Console.WriteLine("*** Training the image classification model with DNN Transfer Learning on top of the selected pre-trained model/architecture ***");
@@ -105,6 +137,12 @@ namespace ImageClassification.Train
             return trainedModel;
         }
 
+        /// <summary>
+        /// Define the model's training pipeline using DNN default values.
+        /// </summary>
+        /// <param name="mlContext"></param>
+        /// <param name="testDataView"></param>
+        /// <returns>Training Pipeline</returns>
         private static Microsoft.ML.Data.EstimatorChain<KeyToValueMappingTransformer> GetTrainingPipeline(MLContext mlContext, IDataView testDataView)
         {
 
@@ -118,6 +156,13 @@ namespace ImageClassification.Train
                                                                       inputColumnName: "PredictedLabel"));
         }
 
+        /// <summary>
+        /// Load Images with in-memory type within the IDataView and Transform Labels to Keys (Categorical).
+        /// </summary>
+        /// <param name="fullImagesetFolderPath"></param>
+        /// <param name="mlContext"></param>
+        /// <param name="shuffledFullImageFilePathsDataset"></param>
+        /// <returns>Shuffled Full Images Dataset</returns>
         private static IDataView GetShuffledFullImagesDataset(string fullImagesetFolderPath, MLContext mlContext, IDataView shuffledFullImageFilePathsDataset)
         {
             return mlContext.Transforms.Conversion.
@@ -130,6 +175,12 @@ namespace ImageClassification.Train
                             .Transform(shuffledFullImageFilePathsDataset);
         }
 
+        /// <summary>
+        /// Load the initial full image-set into an IDataView and shuffle so it'll be better balanced.
+        /// </summary>
+        /// <param name="fullImagesetFolderPath"></param>
+        /// <param name="mlContext"></param>
+        /// <returns>Shuffled Full Image File Paths Dataset</returns>
         private static IDataView GetShuffledFullImageFilePathsDataset(string fullImagesetFolderPath, MLContext mlContext)
         {
             IEnumerable<ImageData> images = LoadImagesFromDirectory(folder: fullImagesetFolderPath, useFolderNameAsLabel: true);
@@ -170,6 +221,12 @@ namespace ImageClassification.Train
             return fullImagesetFolderPath;
         }
 
+        /// <summary>
+        /// Get the quality metrics (accuracy, etc.).
+        /// </summary>
+        /// <param name="mlContext"></param>
+        /// <param name="testDataset"></param>
+        /// <param name="trainedModel"></param>
         private static void EvaluateModel(MLContext mlContext, IDataView testDataset, ITransformer trainedModel)
         {
             Console.WriteLine("Making predictions in bulk for evaluating model's quality...");
@@ -188,6 +245,12 @@ namespace ImageClassification.Train
             Console.WriteLine($"Predicting and Evaluation took: {elapsed2Ms / 1000} seconds");
         }
 
+        /// <summary>
+        /// Try a single prediction simulating an end-user app.
+        /// </summary>
+        /// <param name="imagesFolderPathForPredictions"></param>
+        /// <param name="mlContext"></param>
+        /// <param name="trainedModel"></param>
         private static void TrySinglePrediction(string imagesFolderPathForPredictions, MLContext mlContext, ITransformer trainedModel)
         {
             // Create prediction function to try one prediction

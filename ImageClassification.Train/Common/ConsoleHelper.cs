@@ -184,6 +184,15 @@ namespace Common
             }
         }
 
+        /// <summary>
+        /// This method using 'DebuggerExtensions.Preview()' should only be used when debugging/developing, not for release/production trainings.
+        /// 'transformedData' is a 'promise' of data, lazy-loading. 
+        /// Call Preview and iterate through the returned collection from preview.
+        /// </summary>
+        /// <param name="mlContext"></param>
+        /// <param name="dataView"></param>
+        /// <param name="pipeline"></param>
+        /// <param name="numberOfRows"></param>
         [Conditional("DEBUG")]
         // This method using 'DebuggerExtensions.Preview()' should only be used when debugging/developing, not for release/production trainings
         public static void PeekDataViewInConsole(MLContext mlContext, IDataView dataView, IEstimator<ITransformer> pipeline, int numberOfRows = 4)
@@ -212,6 +221,16 @@ namespace Common
             }
         }
 
+        /// <summary>
+        /// This method using 'DebuggerExtensions.Preview()' should only be used when debugging/developing, not for release/production trainings.
+        /// Extract the 'Features' column.
+        /// Print to console the peeked rows.
+        /// </summary>
+        /// <param name="mlContext"></param>
+        /// <param name="columnName"></param>
+        /// <param name="dataView"></param>
+        /// <param name="pipeline"></param>
+        /// <param name="numberOfRows"></param>
         [Conditional("DEBUG")]
         // This method using 'DebuggerExtensions.Preview()' should only be used when debugging/developing, not for release/production trainings
         public static void PeekVectorColumnDataInConsole(MLContext mlContext, string columnName, IDataView dataView, IEstimator<ITransformer> pipeline, int numberOfRows = 4)

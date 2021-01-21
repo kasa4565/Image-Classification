@@ -10,6 +10,9 @@ namespace ImageClassification.Predict
 {
     internal class Program
     {
+        /// <summary>
+        /// Start the program.
+        /// </summary>
         private static void Main()
         {
             string assetsPath = GetAssetsPath();
@@ -50,6 +53,11 @@ namespace ImageClassification.Predict
             return assetsPath;
         }
 
+        /// <summary>
+        /// Predict all images in the folder.
+        /// </summary>
+        /// <param name="predictionEngine"></param>
+        /// <param name="imagesToPredict"></param>
         private static void PredictAllImages(PredictionEngine<InMemoryImageData, ImagePrediction> predictionEngine, IEnumerable<InMemoryImageData> imagesToPredict)
         {
             //Predict all images in the folder
@@ -72,6 +80,11 @@ namespace ImageClassification.Predict
                                               );
         }
 
+        /// <summary>
+        /// Double-check using the index.
+        /// </summary>
+        /// <param name="predictionEngine"></param>
+        /// <param name="prediction"></param>
         private static void DoubleCheckUsingIndex(PredictionEngine<InMemoryImageData, ImagePrediction> predictionEngine, ImagePrediction prediction)
         {
             ////////
@@ -84,27 +97,34 @@ namespace ImageClassification.Predict
             ////////
         }
 
+        /// <summary>
+        /// Do second prediction for count the taken time.
+        /// </summary>
+        /// <param name="predictionEngine"></param>
+        /// <param name="imageToPredict"></param>
         private static void DoSecondPrediction(PredictionEngine<InMemoryImageData, ImagePrediction> predictionEngine, InMemoryImageData imageToPredict)
         {
-            // Measure #2 prediction execution time.
             var watch2 = System.Diagnostics.Stopwatch.StartNew();
 
-            var prediction2 = predictionEngine.Predict(imageToPredict);
+            predictionEngine.Predict(imageToPredict);
 
-            // Stop measuring time.
             watch2.Stop();
             var elapsedMs2 = watch2.ElapsedMilliseconds;
             Console.WriteLine("Second Prediction took: " + elapsedMs2 + "mlSecs");
         }
 
+        /// <summary>
+        /// Get the prediction and count the taken time.
+        /// </summary>
+        /// <param name="predictionEngine"></param>
+        /// <param name="imageToPredict"></param>
+        /// <returns>Prediction</returns>
         private static ImagePrediction GetFirstPrediction(PredictionEngine<InMemoryImageData, ImagePrediction> predictionEngine, InMemoryImageData imageToPredict)
         {
-            // Measure #1 prediction execution time.
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
             var prediction = predictionEngine.Predict(imageToPredict);
 
-            // Stop measuring time.
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
             Console.WriteLine("First Prediction took: " + elapsedMs + "mlSecs");
@@ -113,11 +133,15 @@ namespace ImageClassification.Predict
 
         private static IEnumerable<InMemoryImageData> GetImagesToPredict(string imagesFolderPathForPredictions)
         {
-
-            //Predict the first image in the folder
             return FileUtils.LoadInMemoryImagesFromDirectory(imagesFolderPathForPredictions, false);
         }
 
+        /// <summary>
+        /// Create prediction engine to try a single prediction (input = ImageData, output = ImagePrediction).
+        /// </summary>
+        /// <param name="mlContext"></param>
+        /// <param name="loadedModel"></param>
+        /// <returns>Prediction Engine</returns>
         private static PredictionEngine<InMemoryImageData, ImagePrediction> GetPredictionEngine(MLContext mlContext, ITransformer loadedModel)
         {
 
@@ -125,6 +149,12 @@ namespace ImageClassification.Predict
             return mlContext.Model.CreatePredictionEngine<InMemoryImageData, ImagePrediction>(loadedModel);
         }
 
+        /// <summary>
+        /// Load the model.
+        /// </summary>
+        /// <param name="imageClassifierModelZipFilePath"></param>
+        /// <param name="mlContext"></param>
+        /// <returns>Loaded model</returns>
         private static ITransformer GetLoadedModel(string imageClassifierModelZipFilePath, MLContext mlContext)
         {
 

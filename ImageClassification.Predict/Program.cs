@@ -42,16 +42,6 @@ namespace ImageClassification.Predict
             Console.ReadKey();
         }
 
-        private static string GetClassifierModelPath(string assetsPath) => Path.Combine(assetsPath, "inputs", "MLNETModel", "imageClassifier.zip");
-
-        private static string GetImagesPath(string assetsPath) => Path.Combine(assetsPath, "inputs", "images-for-predictions");
-
-        private static string GetAssetsPath()
-        {
-            const string assetsRelativePath = @"../../../assets";
-            var assetsPath = GetAbsolutePath(assetsRelativePath);
-            return assetsPath;
-        }
 
         /// <summary>
         /// Predict all images in the folder.
@@ -60,8 +50,6 @@ namespace ImageClassification.Predict
         /// <param name="imagesToPredict"></param>
         private static void PredictAllImages(PredictionEngine<InMemoryImageData, ImagePrediction> predictionEngine, IEnumerable<InMemoryImageData> imagesToPredict)
         {
-            //Predict all images in the folder
-            //
             Console.WriteLine("");
             Console.WriteLine("Predicting several images...");
 
@@ -87,14 +75,11 @@ namespace ImageClassification.Predict
         /// <param name="prediction"></param>
         private static void DoubleCheckUsingIndex(PredictionEngine<InMemoryImageData, ImagePrediction> predictionEngine, ImagePrediction prediction)
         {
-            ////////
-            // Double-check using the index
             var maxIndex = prediction.Score.ToList().IndexOf(prediction.Score.Max());
             VBuffer<ReadOnlyMemory<char>> keys = default;
             predictionEngine.OutputSchema[3].GetKeyValues(ref keys);
             var keysArray = keys.DenseValues().ToArray();
             var predictedLabelString = keysArray[maxIndex];
-            ////////
         }
 
         /// <summary>
@@ -131,10 +116,8 @@ namespace ImageClassification.Predict
             return prediction;
         }
 
-        private static IEnumerable<InMemoryImageData> GetImagesToPredict(string imagesFolderPathForPredictions)
-        {
-            return FileUtils.LoadInMemoryImagesFromDirectory(imagesFolderPathForPredictions, false);
-        }
+        private static IEnumerable<InMemoryImageData> GetImagesToPredict(string imagesFolderPathForPredictions) => 
+            FileUtils.LoadInMemoryImagesFromDirectory(imagesFolderPathForPredictions, false);
 
         /// <summary>
         /// Create prediction engine to try a single prediction (input = ImageData, output = ImagePrediction).
@@ -142,12 +125,8 @@ namespace ImageClassification.Predict
         /// <param name="mlContext"></param>
         /// <param name="loadedModel"></param>
         /// <returns>Prediction Engine</returns>
-        private static PredictionEngine<InMemoryImageData, ImagePrediction> GetPredictionEngine(MLContext mlContext, ITransformer loadedModel)
-        {
-
-            // Create prediction engine to try a single prediction (input = ImageData, output = ImagePrediction)
-            return mlContext.Model.CreatePredictionEngine<InMemoryImageData, ImagePrediction>(loadedModel);
-        }
+        private static PredictionEngine<InMemoryImageData, ImagePrediction> GetPredictionEngine(MLContext mlContext, ITransformer loadedModel) => 
+            mlContext.Model.CreatePredictionEngine<InMemoryImageData, ImagePrediction>(loadedModel);
 
         /// <summary>
         /// Load the model.
@@ -155,14 +134,21 @@ namespace ImageClassification.Predict
         /// <param name="imageClassifierModelZipFilePath"></param>
         /// <param name="mlContext"></param>
         /// <returns>Loaded model</returns>
-        private static ITransformer GetLoadedModel(string imageClassifierModelZipFilePath, MLContext mlContext)
+        private static ITransformer GetLoadedModel(string imageClassifierModelZipFilePath, MLContext mlContext) => 
+            mlContext.Model.Load(imageClassifierModelZipFilePath, out var modelInputSchema);
+
+        public static string GetAbsolutePath(string relativePath) => 
+            FileUtils.GetAbsolutePath(typeof(Program).Assembly, relativePath);
+
+        private static string GetClassifierModelPath(string assetsPath) => Path.Combine(assetsPath, "inputs", "MLNETModel", "imageClassifier.zip");
+
+        private static string GetImagesPath(string assetsPath) => Path.Combine(assetsPath, "inputs", "images-for-predictions");
+
+        private static string GetAssetsPath()
         {
-
-            // Load the model
-            return mlContext.Model.Load(imageClassifierModelZipFilePath, out var modelInputSchema);
+            const string assetsRelativePath = @"../../../assets";
+            var assetsPath = GetAbsolutePath(assetsRelativePath);
+            return assetsPath;
         }
-
-        public static string GetAbsolutePath(string relativePath)
-            => FileUtils.GetAbsolutePath(typeof(Program).Assembly, relativePath);
     }
 }

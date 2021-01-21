@@ -194,18 +194,13 @@ namespace Common
         /// <param name="pipeline"></param>
         /// <param name="numberOfRows"></param>
         [Conditional("DEBUG")]
-        // This method using 'DebuggerExtensions.Preview()' should only be used when debugging/developing, not for release/production trainings
         public static void PeekDataViewInConsole(MLContext mlContext, IDataView dataView, IEstimator<ITransformer> pipeline, int numberOfRows = 4)
         {
             string msg = string.Format("Peek data in DataView: Showing {0} rows with the columns", numberOfRows.ToString());
             ConsoleWriteHeader(msg);
 
-            //https://github.com/dotnet/machinelearning/blob/master/docs/code/MlNetCookBook.md#how-do-i-look-at-the-intermediate-data
             var transformer = pipeline.Fit(dataView);
             var transformedData = transformer.Transform(dataView);
-
-            // 'transformedData' is a 'promise' of data, lazy-loading. call Preview  
-            //and iterate through the returned collection from preview.
 
             var preViewTransformedData = transformedData.Preview(maxRows: numberOfRows);
 
@@ -232,7 +227,6 @@ namespace Common
         /// <param name="pipeline"></param>
         /// <param name="numberOfRows"></param>
         [Conditional("DEBUG")]
-        // This method using 'DebuggerExtensions.Preview()' should only be used when debugging/developing, not for release/production trainings
         public static void PeekVectorColumnDataInConsole(MLContext mlContext, string columnName, IDataView dataView, IEstimator<ITransformer> pipeline, int numberOfRows = 4)
         {
             string msg = string.Format("Peek data in DataView: : Show {0} rows with just the '{1}' column", numberOfRows, columnName );
@@ -241,11 +235,8 @@ namespace Common
             var transformer = pipeline.Fit(dataView);
             var transformedData = transformer.Transform(dataView);
 
-            // Extract the 'Features' column.
             var someColumnData = transformedData.GetColumn<float[]>(columnName)
                                                         .Take(numberOfRows).ToList();
-
-            // print to console the peeked rows
 
             int currentRow = 0;
             someColumnData.ForEach(row => {

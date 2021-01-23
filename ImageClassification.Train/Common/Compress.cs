@@ -21,7 +21,6 @@ namespace Common
             {
                 using (GZipInputStream gzipStream = new GZipInputStream(fs))
                 {
-                    // Change this to your needs
                     string fnOut = Path.Combine(targetDir, Path.GetFileNameWithoutExtension(gzipFileName));
 
                     using (FileStream fsOut = File.Create(fnOut))

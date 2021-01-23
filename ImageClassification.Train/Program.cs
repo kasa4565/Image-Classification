@@ -7,124 +7,187 @@ using Common;
 using ImageClassification.DataModels;
 using Microsoft.ML;
 using Microsoft.ML.Transforms;
-using Microsoft.ML.Vision;
 using static Microsoft.ML.Transforms.ValueToKeyMappingEstimator;
 
 namespace ImageClassification.Train
 {
     internal class Program
     {
+        private static MLContext mlContext;
+
+        /// <summary>
+        /// Start the program.
+        /// </summary>
         static void Main()
         {
-            const string assetsRelativePath = @"../../../assets";
-            string assetsPath = GetAbsolutePath(assetsRelativePath);
+            string outputMlNetModelFilePath = GetOutputModelFilePath();
+            string predictMlNetModelFilePath = GetPredictModelFilePath();
+            string fullImagesetFolderPath = GetFullImagesetFolderPath();
+            string imagesFolderPathForPredictions = GetImagesForPredictionFolderPath();
 
-            const string solutionRelativePath = @"../../../../";
-            string solutionPath = GetAbsolutePath(solutionRelativePath);
-            string predictMlNetModelFilePath = Path.Combine(solutionPath, "ImageClassification.Predict", "assets", "inputs", "MLNETModel", "imageClassifier.zip");
+            mlContext = new MLContext(seed: 1);
+            SpecifyContextFilter();
 
-            string outputMlNetModelFilePath = Path.Combine(assetsPath, "outputs", "imageClassifier.zip");
-            string imagesFolderPathForPredictions = Path.Combine(assetsPath, "inputs", "test-images");
+            IDataView shuffledFullImageFilePathsDataset = GetShuffledFullImageFilePathsDataset(fullImagesetFolderPath, mlContext);
+            IDataView shuffledFullImagesDataset = GetShuffledFullImagesDataset(fullImagesetFolderPath, mlContext, shuffledFullImageFilePathsDataset);
 
-            string imagesDownloadFolderPath = Path.Combine(assetsPath, "inputs", "images");
-
-            // 1. Download the image set and unzip
-            string finalImagesFolderName = "photos";
-            string fullImagesetFolderPath = Path.Combine(imagesDownloadFolderPath, finalImagesFolderName);
-
-            var mlContext = new MLContext(seed: 1);
-
-            // Specify MLContext Filter to only show feedback log/traces about ImageClassification
-            // This is not needed for feedback output if using the explicit MetricsCallback parameter
-            mlContext.Log += FilterMLContextLog;           
-
-            // 2. Load the initial full image-set into an IDataView and shuffle so it'll be better balanced
-            IEnumerable<ImageData> images = LoadImagesFromDirectory(folder: fullImagesetFolderPath, useFolderNameAsLabel: true);
-            IDataView fullImagesDataset = mlContext.Data.LoadFromEnumerable(images);
-            IDataView shuffledFullImageFilePathsDataset = mlContext.Data.ShuffleRows(fullImagesDataset);
-
-            // 3. Load Images with in-memory type within the IDataView and Transform Labels to Keys (Categorical)
-            IDataView shuffledFullImagesDataset = mlContext.Transforms.Conversion.
-                    MapValueToKey(outputColumnName: "LabelAsKey", inputColumnName: "Label", keyOrdinality: KeyOrdinality.ByValue)
-                .Append(mlContext.Transforms.LoadRawImageBytes(
-                                                outputColumnName: "Image",
-                                                imageFolder: fullImagesetFolderPath,
-                                                inputColumnName: "ImagePath"))
-                .Fit(shuffledFullImageFilePathsDataset)
-                .Transform(shuffledFullImageFilePathsDataset);
-
-            // 4. Split the data 80:20 into train and test sets, train and evaluate.
             var trainTestData = mlContext.Data.TrainTestSplit(shuffledFullImagesDataset, testFraction: 0.2);
             IDataView trainDataView = trainTestData.TrainSet;
             IDataView testDataView = trainTestData.TestSet;
 
-            // 5. Define the model's training pipeline using DNN default values
-            //
-            var pipeline = mlContext.MulticlassClassification.Trainers
-                    .ImageClassification(featureColumnName: "Image",
-                                         labelColumnName: "LabelAsKey",
-                                         validationSet: testDataView)
-                .Append(mlContext.Transforms.Conversion.MapKeyToValue(outputColumnName: "PredictedLabel",
-                                                                      inputColumnName: "PredictedLabel"));
+            var pipeline = GetTrainingPipeline(mlContext, testDataView);
 
-            // 5.1 (OPTIONAL) Define the model's training pipeline by using explicit hyper-parameters
-            //
-            //var options = new ImageClassificationTrainer.Options()
-            //{
-            //    FeatureColumnName = "Image",
-            //    LabelColumnName = "LabelAsKey",
-            //    // Just by changing/selecting InceptionV3/MobilenetV2/ResnetV250  
-            //    // you can try a different DNN architecture (TensorFlow pre-trained model). 
-            //    Arch = ImageClassificationTrainer.Architecture.MobilenetV2,
-            //    Epoch = 50,       //100
-            //    BatchSize = 10,
-            //    LearningRate = 0.01f,
-            //    MetricsCallback = (metrics) => Console.WriteLine(metrics),
-            //    ValidationSet = testDataView
-            //};
+            ITransformer trainedModel = GetTrainedModel(trainDataView, pipeline);
+            EvaluateModel(mlContext, testDataView, trainedModel);
 
-            //var pipeline = mlContext.MulticlassClassification.Trainers.ImageClassification(options)
-            //        .Append(mlContext.Transforms.Conversion.MapKeyToValue(
-            //            outputColumnName: "PredictedLabel",
-            //            inputColumnName: "PredictedLabel"));
+            SaveModel(outputMlNetModelFilePath, mlContext, trainDataView, trainedModel);
+            CopyModelToPredict(outputMlNetModelFilePath, predictMlNetModelFilePath);
 
-            // 6. Train/create the ML model
+            TrySinglePrediction(imagesFolderPathForPredictions, mlContext, trainedModel);
+
+            Console.WriteLine("Press any key to finish");
+            Console.ReadKey();
+        }
+
+        /// <summary>
+        /// Specify MLContext Filter to only show feedback log/traces about ImageClassification
+        /// </summary>
+        /// <param name="mlContext"></param>
+        private static void SpecifyContextFilter()
+        {
+            mlContext.Log += FilterMLContextLog;
+        }
+
+        /// <summary>
+        /// Copy model to predict.
+        /// </summary>
+        /// <param name="outputMlNetModelFilePath"></param>
+        /// <param name="predictMlNetModelFilePath"></param>
+        private static void CopyModelToPredict(string outputMlNetModelFilePath, string predictMlNetModelFilePath)
+        {
+            File.Copy(outputMlNetModelFilePath, predictMlNetModelFilePath, true);
+            Console.WriteLine($"Model copied to: {predictMlNetModelFilePath}");
+        }
+
+        /// <summary>
+        /// Save the model to assets/outputs (You get ML.NET .zip model file and TensorFlow .pb model file).
+        /// </summary>
+        /// <param name="outputMlNetModelFilePath"></param>
+        /// <param name="mlContext"></param>
+        /// <param name="trainDataView"></param>
+        /// <param name="trainedModel"></param>
+        private static void SaveModel(string outputMlNetModelFilePath, MLContext mlContext, IDataView trainDataView, ITransformer trainedModel)
+        {
+            mlContext.Model.Save(trainedModel, trainDataView.Schema, outputMlNetModelFilePath);
+            Console.WriteLine($"Model saved to: {outputMlNetModelFilePath}");
+        }
+
+        /// <summary>
+        /// Train/create the ML model.
+        /// </summary>
+        /// <param name="trainDataView"></param>
+        /// <param name="pipeline"></param>
+        /// <returns>Trained Model</returns>
+        private static ITransformer GetTrainedModel(IDataView trainDataView, Microsoft.ML.Data.EstimatorChain<KeyToValueMappingTransformer> pipeline)
+        {
             Console.WriteLine("*** Training the image classification model with DNN Transfer Learning on top of the selected pre-trained model/architecture ***");
-
-            // Measuring training time
             var watch = Stopwatch.StartNew();
-
-            //Train
             ITransformer trainedModel = pipeline.Fit(trainDataView);
 
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
 
             Console.WriteLine($"Training with transfer learning took: {elapsedMs / 1000} seconds");
-
-            // 7. Get the quality metrics (accuracy, etc.)
-            EvaluateModel(mlContext, testDataView, trainedModel);
-
-            // 8. Save the model to assets/outputs (You get ML.NET .zip model file and TensorFlow .pb model file)
-            mlContext.Model.Save(trainedModel, trainDataView.Schema, outputMlNetModelFilePath);
-            Console.WriteLine($"Model saved to: {outputMlNetModelFilePath}");
-
-            //Copy model to predict
-            File.Copy(outputMlNetModelFilePath, predictMlNetModelFilePath, true);
-            Console.WriteLine($"Model copied to: {predictMlNetModelFilePath}");
-
-            // 9. Try a single prediction simulating an end-user app
-            TrySinglePrediction(imagesFolderPathForPredictions, mlContext, trainedModel);
-
-            Console.WriteLine("Press any key to finish");
-            Console.ReadKey();
+            return trainedModel;
         }
-       
+
+        /// <summary>
+        /// Define the model's training pipeline using DNN default values.
+        /// </summary>
+        /// <param name="mlContext"></param>
+        /// <param name="testDataView"></param>
+        /// <returns>Training Pipeline</returns>
+        private static Microsoft.ML.Data.EstimatorChain<KeyToValueMappingTransformer> GetTrainingPipeline(MLContext mlContext, IDataView testDataView) =>
+            mlContext.MulticlassClassification.Trainers
+                    .ImageClassification(featureColumnName: "Image",
+                                         labelColumnName: "LabelAsKey",
+                                         validationSet: testDataView)
+                .Append(mlContext.Transforms.Conversion.MapKeyToValue(outputColumnName: "PredictedLabel",
+                                                                      inputColumnName: "PredictedLabel"));
+
+        /// <summary>
+        /// Load Images with in-memory type within the IDataView and Transform Labels to Keys (Categorical).
+        /// </summary>
+        /// <param name="fullImagesetFolderPath"></param>
+        /// <param name="mlContext"></param>
+        /// <param name="shuffledFullImageFilePathsDataset"></param>
+        /// <returns>Shuffled Full Images Dataset</returns>
+        private static IDataView GetShuffledFullImagesDataset(string fullImagesetFolderPath, MLContext mlContext, IDataView shuffledFullImageFilePathsDataset) =>
+            mlContext.Transforms.Conversion.
+                                MapValueToKey(outputColumnName: "LabelAsKey", inputColumnName: "Label", keyOrdinality: KeyOrdinality.ByValue)
+                            .Append(mlContext.Transforms.LoadRawImageBytes(
+                                                            outputColumnName: "Image",
+                                                            imageFolder: fullImagesetFolderPath,
+                                                            inputColumnName: "ImagePath"))
+                            .Fit(shuffledFullImageFilePathsDataset)
+                            .Transform(shuffledFullImageFilePathsDataset);
+
+        /// <summary>
+        /// Load the initial full image-set into an IDataView and shuffle so it'll be better balanced.
+        /// </summary>
+        /// <param name="fullImagesetFolderPath"></param>
+        /// <param name="mlContext"></param>
+        /// <returns>Shuffled Full Image File Paths Dataset</returns>
+        private static IDataView GetShuffledFullImageFilePathsDataset(string fullImagesetFolderPath, MLContext mlContext)
+        {
+            IEnumerable<ImageData> images = LoadImagesFromDirectory(folder: fullImagesetFolderPath, useFolderNameAsLabel: true);
+            IDataView fullImagesDataset = mlContext.Data.LoadFromEnumerable(images);
+            IDataView shuffledFullImageFilePathsDataset = mlContext.Data.ShuffleRows(fullImagesDataset);
+            return shuffledFullImageFilePathsDataset;
+        }
+
+        private static string GetImagesForPredictionFolderPath()
+        {
+            string assetsRelativePath = @"../../../assets";
+            string assetsPath = GetAbsolutePath(assetsRelativePath);
+            return Path.Combine(assetsPath, "inputs", "test-images");
+        }
+
+        private static string GetPredictModelFilePath()
+        {
+            string solutionRelativePath = @"../../../../";
+            string solutionPath = GetAbsolutePath(solutionRelativePath);
+            return Path.Combine(solutionPath, "ImageClassification.Predict", "assets", "inputs", "MLNETModel", "imageClassifier.zip");
+        }
+
+        private static string GetOutputModelFilePath()
+        {
+            string assetsRelativePath = @"../../../assets";
+            string assetsPath = GetAbsolutePath(assetsRelativePath);
+            return Path.Combine(assetsPath, "outputs", "imageClassifier.zip");
+        }
+
+        private static string GetFullImagesetFolderPath()
+        {
+            string assetsRelativePath = @"../../../assets";
+            string assetsPath = GetAbsolutePath(assetsRelativePath);
+            string imagesDownloadFolderPath = Path.Combine(assetsPath, "inputs", "images");
+            string finalImagesFolderName = "photos";
+            string fullImagesetFolderPath = Path.Combine(imagesDownloadFolderPath, finalImagesFolderName);
+
+            return fullImagesetFolderPath;
+        }
+
+        /// <summary>
+        /// Get the quality metrics (accuracy, etc.).
+        /// </summary>
+        /// <param name="mlContext"></param>
+        /// <param name="testDataset"></param>
+        /// <param name="trainedModel"></param>
         private static void EvaluateModel(MLContext mlContext, IDataView testDataset, ITransformer trainedModel)
         {
             Console.WriteLine("Making predictions in bulk for evaluating model's quality...");
 
-            // Measuring time
             var watch = Stopwatch.StartNew();
 
             var predictionsDataView = trainedModel.Transform(testDataset);
@@ -138,9 +201,14 @@ namespace ImageClassification.Train
             Console.WriteLine($"Predicting and Evaluation took: {elapsed2Ms / 1000} seconds");
         }
 
+        /// <summary>
+        /// Try a single prediction simulating an end-user app.
+        /// </summary>
+        /// <param name="imagesFolderPathForPredictions"></param>
+        /// <param name="mlContext"></param>
+        /// <param name="trainedModel"></param>
         private static void TrySinglePrediction(string imagesFolderPathForPredictions, MLContext mlContext, ITransformer trainedModel)
         {
-            // Create prediction function to try one prediction
             var predictionEngine = mlContext.Model
                 .CreatePredictionEngine<InMemoryImageData, ImagePrediction>(trainedModel);
 
@@ -163,25 +231,6 @@ namespace ImageClassification.Train
             bool useFolderNameAsLabel = true)
             => FileUtils.LoadImagesFromDirectory(folder, useFolderNameAsLabel)
                 .Select(x => new ImageData(x.imagePath, x.label));
-
-        // public static string DownloadImageSet(string imagesDownloadFolder)
-        // {
-        //     // get a set of images to teach the network about the new classes
-        //
-        //     //SINGLE SMALL FLOWERS IMAGESET (200 files)
-        //     const string fileName = "flower_photos_small_set.zip";
-        //     var url = $"https://mlnetfilestorage.file.core.windows.net/imagesets/flower_images/flower_photos_small_set.zip?st=2019-08-07T21%3A27%3A44Z&se=2030-08-08T21%3A27%3A00Z&sp=rl&sv=2018-03-28&sr=f&sig=SZ0UBX47pXD0F1rmrOM%2BfcwbPVob8hlgFtIlN89micM%3D";
-        //     Web.Download(url, imagesDownloadFolder, fileName);
-        //     Compress.UnZip(Path.Join(imagesDownloadFolder, fileName), imagesDownloadFolder);
-        //
-        //     //SINGLE FULL FLOWERS IMAGESET (3,600 files)
-        //     //string fileName = "flower_photos.tgz";
-        //     //string url = $"http://download.tensorflow.org/example_images/{fileName}";
-        //     //Web.Download(url, imagesDownloadFolder, fileName);
-        //     //Compress.ExtractTGZ(Path.Join(imagesDownloadFolder, fileName), imagesDownloadFolder);
-        //
-        //     return Path.GetFileNameWithoutExtension(fileName);
-        // }
 
         public static string GetAbsolutePath(string relativePath)
             => FileUtils.GetAbsolutePath(typeof(Program).Assembly, relativePath);
